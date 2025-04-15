@@ -5,8 +5,26 @@ import json
 import shutil
 import argparse
 import http.client
+from typing import Any, Optional, Union, Dict, List, Tuple
 
 from fastmcp import FastMCP
+
+# Define custom exception classes for better error handling
+class MCPError(Exception):
+    """Base exception for MCP-related errors."""
+    pass
+
+class JSONRPCError(MCPError):
+    """Exception raised for JSON-RPC related errors."""
+    def __init__(self, code: int, message: str, data: Optional[Any] = None):
+        self.code = code
+        self.message = message
+        self.data = data
+        super().__init__(f"JSON-RPC error {code}: {message}")
+
+class ConnectionError(MCPError):
+    """Exception raised for connection-related errors."""
+    pass
 
 # The log_level is necessary for Cline to work: https://github.com/jlowin/fastmcp/issues/81
 mcp = FastMCP("github.com/mrexodia/ida-pro-mcp", log_level="ERROR")
@@ -14,7 +32,21 @@ mcp = FastMCP("github.com/mrexodia/ida-pro-mcp", log_level="ERROR")
 jsonrpc_request_id = 1
 
 def make_jsonrpc_request(method: str, *params):
-    """Make a JSON-RPC request to the IDA plugin"""
+    """
+    Make a JSON-RPC request to the IDA plugin.
+    
+    Args:
+        method: The JSON-RPC method to call
+        *params: Parameters to pass to the method
+        
+    Returns:
+        The result of the JSON-RPC call
+        
+    Raises:
+        ConnectionError: If connection to the IDA plugin fails
+        JSONRPCError: If the JSON-RPC call returns an error
+        MCPError: For other unexpected errors
+    """
     global jsonrpc_request_id
     conn = http.client.HTTPConnection("localhost", 13337)
     request = {
@@ -36,18 +68,22 @@ def make_jsonrpc_request(method: str, *params):
             error = data["error"]
             code = error["code"]
             message = error["message"]
-            pretty = f"JSON-RPC error {code}: {message}"
-            if "data" in error:
-                pretty += "\n" + error["data"]
-            raise Exception(pretty)
+            data_info = error.get("data")
+            raise JSONRPCError(code, message, data_info)
 
         result = data["result"]
         # NOTE: LLMs do not respond well to empty responses
         if result is None:
             result = "success"
         return result
-    except Exception:
-        raise
+    except http.client.HTTPException as e:
+        raise ConnectionError(f"HTTP connection error: {str(e)}")
+    except json.JSONDecodeError:
+        raise JSONRPCError(-32700, "Parse error: invalid JSON response")
+    except JSONRPCError:
+        raise  # Re-raise JSONRPCError as is
+    except Exception as e:
+        raise MCPError(f"Unexpected error in JSON-RPC request: {str(e)}")
     finally:
         conn.close()
 
@@ -57,12 +93,14 @@ def check_connection() -> str:
     try:
         metadata = make_jsonrpc_request("get_metadata")
         return f"Successfully connected to IDA Pro (open file: {metadata['module']})"
-    except Exception as e:
+    except ConnectionError as e:
         if sys.platform == "darwin":
             shortcut = "Ctrl+Option+M"
         else:
             shortcut = "Ctrl+Alt+M"
-        return f"Failed to connect to IDA Pro! Did you run Edit -> Plugins -> MCP ({shortcut}) to start the server?"
+        return f"Failed to connect to IDA Pro! Did you run Edit -> Plugins -> MCP ({shortcut}) to start the server? Error: {str(e)}"
+    except Exception as e:
+        return f"Failed to connect to IDA Pro: {str(e)}"
 
 # Code taken from https://github.com/mrexodia/ida-pro-mcp (MIT License)
 class MCPVisitor(ast.NodeVisitor):
@@ -195,7 +233,7 @@ def generate_readme():
             "command": "uv",
             "args": [
                 "--directory",
-                "c:\\MCP\\ida-pro-mcp",
+                "c:\\\\MCP\\\\ida-pro-mcp",
                 "run",
                 "server.py",
                 "--install-plugin"
@@ -276,7 +314,7 @@ def install_mcp_servers(*, uninstall=False, quiet=False, env={}):
             del mcp_servers[mcp.name]
         else:
             if mcp.name in mcp_servers:
-                for key, value in mcp_servers[mcp.name].get("env", {}):
+                for key, value in mcp_servers[mcp.name].get("env", {}).items():
                     env[key] = value
             mcp_servers[mcp.name] = {
                 "command": get_python_executable(),

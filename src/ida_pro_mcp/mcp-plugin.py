@@ -298,7 +298,7 @@ def sync_wrapper(ff, safety_mode: IDASafety):
     #logger.debug('sync_wrapper: {}, {}'.format(ff.__name__, safety_mode))
 
     if safety_mode not in [IDASafety.SAFE_READ, IDASafety.SAFE_WRITE]:
-        error_str = 'Invalid safety mode {} over function {}'\
+        error_str = 'Invalid safety mode {} over function {}'\ 
                 .format(safety_mode, ff.__name__)
         logger.error(error_str)
         raise IDASyncError(error_str)
@@ -442,13 +442,37 @@ class Function(TypedDict):
     size: str
 
 def parse_address(address: str) -> int:
+    """
+    Parse address string into a numeric address.
+    
+    Args:
+        address: String representation of an address (decimal, hex with 0x prefix, or hex without prefix)
+        
+    Returns:
+        int: The parsed address
+        
+    Raises:
+        IDAError: If the address cannot be parsed
+    """
+    if not address:
+        raise IDAError("Empty address string")
+        
+    # Try parsing with int() which handles 0x prefix automatically
     try:
         return int(address, 0)
     except ValueError:
-        for ch in address:
-            if ch not in "0123456789abcdefABCDEF":
-                raise IDAError(f"Failed to parse address: {address}")
-        raise IDAError(f"Failed to parse address (missing 0x prefix): {address}")
+        # If it fails, check if it's a valid hex string without 0x prefix
+        if all(c in "0123456789abcdefABCDEF" for c in address):
+            try:
+                return int(address, 16)
+            except ValueError:
+                pass
+        
+        # If we get here, the address is invalid
+        if any(c not in "0123456789abcdefABCDEF" for c in address):
+            raise IDAError(f"Invalid characters in address: {address}")
+        else:
+            raise IDAError(f"Failed to parse address (missing 0x prefix or invalid format): {address}")
 
 def get_function(address: int, *, raise_error=True) -> Function:
     fn = idaapi.get_func(address)
@@ -660,8 +684,6 @@ def search_strings(
     matched_strings = [s for s in strings if pattern.lower() in s["string"].lower()]
     return paginate(matched_strings, offset, count)
 
-
-
 def decompile_checked(address: int) -> ida_hexrays.cfunc_t:
     if not ida_hexrays.init_hexrays_plugin():
         raise IDAError("Hex-Rays decompiler is not available")
@@ -776,46 +798,68 @@ def set_comment(
     address: Annotated[str, "Address in the function to set the comment for"],
     comment: Annotated[str, "Comment text"]
 ):
-    """Set a comment for a given address in the function disassembly and pseudocode"""
+    """
+    Set a comment for a given address in the function disassembly and pseudocode.
+    
+    Args:
+        address: Address in the function to set the comment for
+        comment: Comment text to set
+        
+    Raises:
+        IDAError: If setting the comment fails
+    """
     address = parse_address(address)
 
+    # Set disassembly comment
     if not idaapi.set_cmt(address, comment, False):
         raise IDAError(f"Failed to set disassembly comment at {hex(address)}")
 
-    # Reference: https://cyber.wtf/2019/03/22/using-ida-python-to-analyze-trickbot/
-    # Check if the address corresponds to a line
-    cfunc = decompile_checked(address)
+    try:
+        # Check if the address corresponds to a line
+        cfunc = decompile_checked(address)
 
-    # Special case for function entry comments
-    if address == cfunc.entry_ea:
-        idc.set_func_cmt(address, comment, True)
-        cfunc.refresh_func_ctext()
-        return
-
-    eamap = cfunc.get_eamap()
-    if address not in eamap:
-        print(f"Failed to set decompiler comment at {hex(address)}")
-        return
-    nearest_ea = eamap[address][0].ea
-
-    # Remove existing orphan comments
-    if cfunc.has_orphan_cmts():
-        cfunc.del_orphan_cmts()
-        cfunc.save_user_cmts()
-
-    # Set the comment by trying all possible item types
-    tl = idaapi.treeloc_t()
-    tl.ea = nearest_ea
-    for itp in range(idaapi.ITP_SEMI, idaapi.ITP_COLON):
-        tl.itp = itp
-        cfunc.set_user_cmt(tl, comment)
-        cfunc.save_user_cmts()
-        cfunc.refresh_func_ctext()
-        if not cfunc.has_orphan_cmts():
+        # Special case for function entry comments
+        if address == cfunc.entry_ea:
+            idc.set_func_cmt(address, comment, True)
+            cfunc.refresh_func_ctext()
             return
-        cfunc.del_orphan_cmts()
-        cfunc.save_user_cmts()
-    print(f"Failed to set decompiler comment at {hex(address)}")
+
+        # Find the corresponding line in the decompiled code
+        eamap = cfunc.get_eamap()
+        if address not in eamap:
+            raise IDAError(f"Failed to find address {hex(address)} in decompiled code")
+        
+        nearest_ea = eamap[address][0].ea
+
+        # Remove existing orphan comments
+        if cfunc.has_orphan_cmts():
+            cfunc.del_orphan_cmts()
+            cfunc.save_user_cmts()
+
+        # Set the comment by trying all possible item types
+        success = False
+        tl = idaapi.treeloc_t()
+        tl.ea = nearest_ea
+        for itp in range(idaapi.ITP_SEMI, idaapi.ITP_COLON):
+            tl.itp = itp
+            cfunc.set_user_cmt(tl, comment)
+            cfunc.save_user_cmts()
+            cfunc.refresh_func_ctext()
+            if not cfunc.has_orphan_cmts():
+                success = True
+                break
+            cfunc.del_orphan_cmts()
+            cfunc.save_user_cmts()
+            
+        if not success:
+            raise IDAError(f"Failed to set decompiler comment at {hex(address)}")
+    except Exception as e:
+        # If decompilation fails, we still set the disassembly comment
+        # but we inform the user about the decompiler issue
+        if isinstance(e, IDAError):
+            raise IDAError(f"Set disassembly comment but failed to set decompiler comment: {str(e)}")
+        else:
+            raise IDAError(f"Set disassembly comment but failed to set decompiler comment due to unexpected error: {str(e)}")
 
 def refresh_decompiler_widget():
     widget = ida_kernwin.get_current_widget()
@@ -974,25 +1018,44 @@ def set_local_variable_type(
     variable_name: Annotated[str, "Name of the variable"],
     new_type: Annotated[str, "New type for the variable"]
 ):
-    """Set a local variable's type"""
-    try:
-        # Some versions of IDA don't support this constructor
-        new_tif = ida_typeinf.tinfo_t(new_type, None, ida_typeinf.PT_SIL)
-    except Exception:
-        try:
-            new_tif = ida_typeinf.tinfo_t()
-            # parse_decl requires semicolon for the type
-            ida_typeinf.parse_decl(new_tif, None, new_type+";", ida_typeinf.PT_SIL)
-        except Exception:
-            raise IDAError(f"Failed to parse type: {new_type}")
-    func = idaapi.get_func(parse_address(function_address))
+    """
+    Set a local variable's type.
+    
+    Args:
+        function_address: Address of the function containing the variable
+        variable_name: Name of the variable
+        new_type: New type for the variable
+        
+    Raises:
+        IDAError: If setting the variable type fails
+    """
+    # Parse the function address
+    func_addr = parse_address(function_address)
+    
+    # Get the function
+    func = idaapi.get_func(func_addr)
     if not func:
-        raise IDAError(f"No function found at address {function_address}")
+        raise IDAError(f"No function found at address {hex(func_addr)}")
+    
+    # Parse the type
+    new_tif = ida_typeinf.tinfo_t()
+    try:
+        # Try to parse the type directly
+        if not ida_typeinf.parse_decl(new_tif, None, new_type + ";", ida_typeinf.PT_SIL):
+            raise IDAError(f"Failed to parse type: {new_type}")
+    except Exception as e:
+        raise IDAError(f"Failed to parse type '{new_type}': {str(e)}")
+    
+    # Find the variable
     if not ida_hexrays.rename_lvar(func.start_ea, variable_name, variable_name):
         raise IDAError(f"Failed to find local variable: {variable_name}")
+    
+    # Create a modifier to change the variable type
     modifier = my_modifier_t(variable_name, new_tif)
     if not ida_hexrays.modify_user_lvars(func.start_ea, modifier):
         raise IDAError(f"Failed to modify local variable: {variable_name}")
+    
+    # Refresh the decompiler view
     refresh_decompiler_ctext(func.start_ea)
 
 class MCP(idaapi.plugin_t):
