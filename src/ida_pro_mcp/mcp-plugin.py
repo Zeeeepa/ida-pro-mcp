@@ -442,13 +442,38 @@ class Function(TypedDict):
     size: str
 
 def parse_address(address: str) -> int:
+    """Parse an address string into an integer.
+    
+    Handles various formats including:
+    - Hexadecimal with 0x prefix (e.g., "0x1234")
+    - Hexadecimal without prefix (e.g., "1234")
+    - Decimal (e.g., "4660")
+    
+    Args:
+        address: The address string to parse
+        
+    Returns:
+        The parsed address as an integer
+        
+    Raises:
+        IDAError: If the address cannot be parsed
+    """
+    if not address:
+        raise IDAError("Empty address provided")
+        
     try:
+        # Try to parse with automatic base detection (0x prefix for hex)
         return int(address, 0)
     except ValueError:
-        for ch in address:
-            if ch not in "0123456789abcdefABCDEF":
-                raise IDAError(f"Failed to parse address: {address}")
-        raise IDAError(f"Failed to parse address (missing 0x prefix): {address}")
+        # Check if it's a hex number without 0x prefix
+        if all(ch in "0123456789abcdefABCDEF" for ch in address):
+            try:
+                return int(address, 16)
+            except ValueError:
+                pass
+        
+        # If we get here, it's not a valid address
+        raise IDAError(f"Failed to parse address: {address}. Use format '0x1234' for hexadecimal or '1234' for decimal.")
 
 def get_function(address: int, *, raise_error=True) -> Function:
     fn = idaapi.get_func(address)
@@ -631,7 +656,7 @@ def list_strings(
 
 @jsonrpc
 @idaread
-def search_strings(
+def search_strings_regex(
         pattern_str: Annotated[str, "The regular expression to match((The generated regular expression includes case by default))"],
         offset: Annotated[int, "Offset to start listing from (start at 0)"],
         count: Annotated[int, "Number of strings to list (100 is a good default, 0 means remainder)"],
@@ -641,11 +666,11 @@ def search_strings(
     try:
         pattern = re.compile(pattern_str)
     except Exception as e:
-        raise ValueError(f"Regular expression syntax error, reason is {e}")
+        raise IDAError(f"Regular expression syntax error: {e}")
     try:
         matched_strings = [s for s in strings if s["string"] and re.search(pattern, s["string"])]
     except Exception as e:
-        raise ValueError(f"The regular match failed, reason is {e}")
+        raise IDAError(f"The regular expression match failed: {e}")
     return paginate(matched_strings, offset, count)
 
 @jsonrpc
@@ -659,8 +684,6 @@ def search_strings(
     strings = get_strings()
     matched_strings = [s for s in strings if pattern.lower() in s["string"].lower()]
     return paginate(matched_strings, offset, count)
-
-
 
 def decompile_checked(address: int) -> ida_hexrays.cfunc_t:
     if not ida_hexrays.init_hexrays_plugin():
@@ -794,8 +817,8 @@ def set_comment(
 
     eamap = cfunc.get_eamap()
     if address not in eamap:
-        print(f"Failed to set decompiler comment at {hex(address)}")
-        return
+        raise IDAError(f"Failed to set decompiler comment at {hex(address)}: Address not found in decompiler mapping")
+
     nearest_ea = eamap[address][0].ea
 
     # Remove existing orphan comments
@@ -806,16 +829,20 @@ def set_comment(
     # Set the comment by trying all possible item types
     tl = idaapi.treeloc_t()
     tl.ea = nearest_ea
+    success = False
     for itp in range(idaapi.ITP_SEMI, idaapi.ITP_COLON):
         tl.itp = itp
         cfunc.set_user_cmt(tl, comment)
         cfunc.save_user_cmts()
         cfunc.refresh_func_ctext()
         if not cfunc.has_orphan_cmts():
-            return
+            success = True
+            break
         cfunc.del_orphan_cmts()
         cfunc.save_user_cmts()
-    print(f"Failed to set decompiler comment at {hex(address)}")
+    
+    if not success:
+        raise IDAError(f"Failed to set decompiler comment at {hex(address)}: Could not find appropriate location")
 
 def refresh_decompiler_widget():
     widget = ida_kernwin.get_current_widget()

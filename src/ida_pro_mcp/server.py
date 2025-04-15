@@ -162,6 +162,7 @@ from pydantic import Field
 T = TypeVar("T")
 
 """
+
 for type in visitor.types.values():
     code += ast.unparse(type)
     code += "\n\n"
@@ -172,7 +173,7 @@ with open(GENERATED_PY, "w") as f:
     f.write(code)
 exec(compile(code, GENERATED_PY, "exec"))
 
-MCP_FUNCTIONS = ["check_connection"] + list(visitor.functions.keys())
+MCP_FUNCTIONS = ["check_connection", "search_strings_regex"] + list(visitor.functions.keys())
 
 def generate_readme():
     print("README:")
