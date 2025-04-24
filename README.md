@@ -19,7 +19,7 @@ Available functionality:
 - `list_strings(offset, count)`: List all strings in the database (paginated).
 - `search_strings(pattern, offset, count)`: Search for strings containing the given pattern (case-insensitive).
 - `decompile_function(address)`: Decompile a function at the given address.
-- `disassemble_function(start_address)`: Get assembly code (address: instruction; comment) for a function.
+- `disassemble_function(start_address, max_instructions)`: Get assembly code (address: instruction; comment) for a function with optional limit on the number of instructions and display of labels.
 - `get_xrefs_to(address)`: Get all cross references to the given address.
 - `get_entry_points()`: Get all entry points in the database.
 - `set_comment(address, comment)`: Set a comment for a given address in the function disassembly and pseudocode.
