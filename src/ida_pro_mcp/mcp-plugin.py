@@ -660,8 +660,6 @@ def search_strings(
     matched_strings = [s for s in strings if pattern.lower() in s["string"].lower()]
     return paginate(matched_strings, offset, count)
 
-
-
 def decompile_checked(address: int) -> ida_hexrays.cfunc_t:
     if not ida_hexrays.init_hexrays_plugin():
         raise IDAError("Hex-Rays decompiler is not available")
@@ -712,7 +710,8 @@ def decompile_function(
 @jsonrpc
 @idaread
 def disassemble_function(
-    start_address: Annotated[str, "Address of the function to disassemble"]
+    start_address: Annotated[str, "Address of the function to disassemble"],
+    max_instructions: Annotated[int, "Maximum number of instructions to return (0 for unlimited)"] = 0
 ) -> str:
     """Get assembly code (address: instruction; comment) for a function"""
     start = parse_address(start_address)
@@ -722,18 +721,42 @@ def disassemble_function(
     if is_window_active():
         ida_kernwin.jumpto(start)
 
-    # TODO: add labels and limit the maximum number of instructions
-    disassembly = ""
+    # Get all labels in the function
+    labels = {}
     for address in ida_funcs.func_item_iterator_t(func):
+        name = idaapi.get_name(address)
+        if name and name != idaapi.get_func_name(address):
+            labels[address] = name
+
+    disassembly = ""
+    instruction_count = 0
+    for address in ida_funcs.func_item_iterator_t(func):
+        # Check if we've reached the maximum number of instructions
+        if max_instructions > 0 and instruction_count >= max_instructions:
+            disassembly += f"\n... (truncated, showing {max_instructions} of {ida_funcs.get_func_ninstrs(func)} instructions)"
+            break
+            
+        # Add a newline between instructions
         if len(disassembly) > 0:
             disassembly += "\n"
+            
+        # Add label if it exists
+        if address in labels:
+            disassembly += f"{labels[address]}:\n"
+            
+        # Add instruction address and disassembly
         disassembly += f"{hex(address)}: "
         disassembly += idaapi.generate_disasm_line(address, idaapi.GENDSM_REMOVE_TAGS)
+        
+        # Add comments if they exist
         comment = idaapi.get_cmt(address, False)
         if not comment:
             comment = idaapi.get_cmt(address, True)
         if comment:
             disassembly += f"; {comment}"
+            
+        instruction_count += 1
+        
     return disassembly
 
 class Xref(TypedDict):
@@ -865,7 +888,16 @@ def set_global_variable_type(
 ):
     """Set a global variable's type"""
     ea = idaapi.get_name_ea(idaapi.BADADDR, variable_name)
-    tif = ida_typeinf.tinfo_t(new_type, None, ida_typeinf.PT_SIL)
+    try:
+        # Some versions of IDA don't support this constructor
+        tif = ida_typeinf.tinfo_t(new_type, None, ida_typeinf.PT_SIL)
+    except Exception:
+        try:
+            tif = ida_typeinf.tinfo_t()
+            # parse_decl requires semicolon for the type
+            ida_typeinf.parse_decl(tif, None, new_type+";", ida_typeinf.PT_SIL)
+        except Exception:
+            raise IDAError(f"Failed to parse type: {new_type}")
     if not tif:
         raise IDAError(f"Parsed declaration is not a variable type")
     if not ida_typeinf.apply_tinfo(ea, tif, ida_typeinf.PT_SIL):
