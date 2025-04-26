@@ -54,7 +54,7 @@ pip install --upgrade git+https://github.com/mrexodia/ida-pro-mcp
 
 Configure the MCP servers and install the IDA Plugin:
 
-```
+```sh
 ida-pro-mcp --install
 ```
 
@@ -181,7 +181,7 @@ To install the MCP server yourself, follow these steps:
 
 To check if the connection works you can perform the following tool call:
 
-```
+```sh
 <use_mcp_tool>
 <server_name>github.com/mrexodia/ida-pro-mcp</server_name>
 <tool_name>check_connection</tool_name>
@@ -239,3 +239,25 @@ Generate the changelog of direct commits to `main`:
 ```sh
 git log --first-parent --no-merges 1.2.0..main "--pretty=- %s"
 ```
+
+## Troubleshooting
+
+If you encounter issues with the IDA Pro MCP plugin, try these common solutions:
+
+### Connection Issues
+- Ensure IDA Pro is running and the plugin is activated (Edit -> Plugins -> MCP)
+- Check if your firewall is blocking the connection (the plugin uses port 13337 by default)
+- Restart IDA Pro completely after installation
+- Verify that your Python version is 3.11 or higher
+
+### Plugin Not Loading
+- Check the IDA Pro console for error messages
+- Ensure the plugin file is in the correct plugins directory
+- Verify that all dependencies are installed correctly
+
+### LLM Not Responding to Commands
+- Make sure you're using the correct MCP tool names as listed in the documentation
+- Check that your MCP client is properly configured to use the IDA Pro MCP server
+- Try using the `check_connection` command to verify connectivity
+
+If you continue to experience issues, please [open an issue](https://github.com/mrexodia/ida-pro-mcp/issues) with detailed information about your setup and the problem you're encountering.
