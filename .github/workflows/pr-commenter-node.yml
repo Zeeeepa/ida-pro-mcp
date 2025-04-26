@@ -1,0 +1,27 @@
+name: PR Commenter (Node.js)
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  post-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Post Comments
+        run: node pr-commenter.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: Set comments as an environment variable
+          # COMMENTS: ${{ secrets.COMMENTS }}

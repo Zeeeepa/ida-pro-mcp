@@ -1,0 +1,25 @@
+{
+  "name": "pr-commenter",
+  "version": "1.0.0",
+  "description": "Automatically post comments to GitHub PRs to trigger AI reviews",
+  "main": "pr-commenter.js",
+  "bin": {
+    "pr-commenter": "./pr-commenter.js"
+  },
+  "scripts": {
+    "start": "node pr-commenter.js"
+  },
+  "keywords": [
+    "github",
+    "pr",
+    "comments",
+    "ai",
+    "review"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^19.0.13",
+    "dotenv": "^16.3.1"
+  }
+}
