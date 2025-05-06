@@ -24,6 +24,7 @@ class TestModuleImports(unittest.TestCase):
         self.optional_dependencies = [
             'typing_inspection',
             'mcp',
+            'idapro',
             # IDA Pro specific modules
             'ida_pro',
             'ida_hexrays',
@@ -43,6 +44,13 @@ class TestModuleImports(unittest.TestCase):
             'ida_xref',
             'idautils',
             'idc',
+            'idaapi',
+            'ida_gdl',
+            'ida_lines',
+            'ida_entry',
+            'ida_idd',
+            'ida_dbg',
+            'ida_ida',
         ]
 
     def test_package_import(self):
