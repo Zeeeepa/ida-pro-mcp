@@ -1,135 +1,92 @@
 """
-JSON Formatter Module
+JSON formatter for PR static analysis reports.
 
-This module provides a formatter for converting analysis results into JSON format.
+This module provides the JSONFormatter class for generating JSON reports.
 """
 
+from typing import Dict, List, Any, Optional
 import json
-from typing import Any, Dict, Optional, List
-
 from .base_formatter import BaseFormatter
 
-
 class JSONFormatter(BaseFormatter):
-    """
-    Formatter for converting analysis results into JSON format.
+    """Formatter for JSON reports."""
     
-    This formatter generates a JSON report from analysis results.
-    It supports customization of the included fields and formatting options.
-    """
-    
-    def __init__(
-        self,
-        include_summary: bool = True,
-        include_details: bool = True,
-        include_issues: bool = True,
-        include_files: bool = True,
-        include_metrics: bool = True,
-        pretty_print: bool = True,
-        custom_fields: Optional[Dict[str, Any]] = None
-    ):
+    def format_report(self, results: List[Dict[str, Any]], metadata: Dict[str, Any], **kwargs) -> str:
         """
-        Initialize a new JSONFormatter.
+        Format a report as JSON.
         
         Args:
-            include_summary: Whether to include a summary field
-            include_details: Whether to include a details field
-            include_issues: Whether to include an issues field
-            include_files: Whether to include files fields
-            include_metrics: Whether to include a metrics field
-            pretty_print: Whether to pretty-print the JSON output
-            custom_fields: Optional dictionary of custom fields to include
-        """
-        self.include_summary = include_summary
-        self.include_details = include_details
-        self.include_issues = include_issues
-        self.include_files = include_files
-        self.include_metrics = include_metrics
-        self.pretty_print = pretty_print
-        self.custom_fields = custom_fields or {}
-        
-    def format(
-        self, 
-        analysis_results: Dict[str, Any], 
-        visualizations: Optional[Dict[str, Any]] = None,
-        **kwargs
-    ) -> str:
-        """
-        Format analysis results into a JSON report.
-        
-        Args:
-            analysis_results: Analysis results to format
-            visualizations: Optional dictionary of visualization data
-            **kwargs: Additional formatter-specific arguments
+            results: Analysis results
+            metadata: Report metadata
+            **kwargs: Additional formatting options
             
         Returns:
-            The formatted report as a JSON string
+            JSON report
         """
-        # Create a new dictionary for the report
-        report = {}
+        # Get formatting options
+        include_summary = kwargs.get("include_summary", True)
         
-        # Add title
-        title = kwargs.get('title', 'PR Static Analysis Report')
-        report['title'] = title
+        # Create the report structure
+        report = {
+            "metadata": metadata,
+            "results": results,
+        }
         
-        # Add timestamp if provided
-        if 'timestamp' in kwargs:
-            report['timestamp'] = kwargs['timestamp']
+        # Add summary if requested
+        if include_summary:
+            report["summary"] = self._generate_summary(results)
         
-        # Add summary
-        if self.include_summary and 'summary' in analysis_results:
-            report['summary'] = analysis_results['summary']
+        return json.dumps(report, indent=2)
         
-        # Add issues
-        if self.include_issues and 'issues' in analysis_results:
-            report['issues'] = analysis_results['issues']
+    def format_result(self, result: Dict[str, Any]) -> str:
+        """
+        Format a single result as JSON.
         
-        # Add files
-        if self.include_files:
-            if 'files_added' in analysis_results:
-                report['files_added'] = analysis_results['files_added']
-            if 'files_modified' in analysis_results:
-                report['files_modified'] = analysis_results['files_modified']
-            if 'files_removed' in analysis_results:
-                report['files_removed'] = analysis_results['files_removed']
-        
-        # Add metrics
-        if self.include_metrics and 'metrics' in analysis_results:
-            report['metrics'] = analysis_results['metrics']
-        
-        # Add visualizations
-        if visualizations:
-            # For JSON, we can only include serializable data
-            serializable_visualizations = {}
-            for viz_name, viz_data in visualizations.items():
-                if isinstance(viz_data, (str, int, float, bool, list, dict, type(None))):
-                    serializable_visualizations[viz_name] = viz_data
-                elif hasattr(viz_data, 'to_dict'):
-                    # If the visualization object has a to_dict method, use it
-                    serializable_visualizations[viz_name] = viz_data.to_dict()
-                elif hasattr(viz_data, '__dict__'):
-                    # If the visualization object has a __dict__ attribute, use it
-                    serializable_visualizations[viz_name] = viz_data.__dict__
+        Args:
+            result: Analysis result
             
-            if serializable_visualizations:
-                report['visualizations'] = serializable_visualizations
+        Returns:
+            JSON-formatted result
+        """
+        return json.dumps(result, indent=2)
         
-        # Add custom fields
-        for field_name, field_value in self.custom_fields.items():
-            if callable(field_value):
-                # If the field value is a function, call it with the analysis results
-                report[field_name] = field_value(analysis_results)
-            else:
-                # Otherwise, add the value directly
-                report[field_name] = field_value
+    def format_section(self, title: str, content: str) -> str:
+        """
+        Format a section as JSON.
         
-        # Add details
-        if self.include_details and 'details' in analysis_results:
-            report['details'] = analysis_results['details']
+        Args:
+            title: Section title
+            content: Section content
+            
+        Returns:
+            JSON-formatted section
+        """
+        section = {
+            "title": title,
+            "content": content,
+        }
+        return json.dumps(section, indent=2)
         
-        # Convert to JSON
-        if self.pretty_print:
-            return json.dumps(report, indent=2, sort_keys=True)
-        else:
-            return json.dumps(report)
+    def _generate_summary(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Generate a summary of the results.
+        
+        Args:
+            results: Analysis results
+            
+        Returns:
+            Summary dictionary
+        """
+        severity_counts = self._count_by_severity(results)
+        category_counts = {}
+        
+        for result in results:
+            category = result.get("category", "other")
+            category_counts[category] = category_counts.get(category, 0) + 1
+            
+        return {
+            "total": len(results),
+            "by_severity": severity_counts,
+            "by_category": category_counts
+        }
 

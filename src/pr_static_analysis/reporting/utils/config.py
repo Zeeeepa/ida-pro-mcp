@@ -1,75 +1,74 @@
 """
-Configuration Utilities
+Configuration utilities for PR static analysis reports.
 
-This module provides utilities for loading and saving configuration files.
+This module provides classes for configuring reports.
 """
 
-import json
-import logging
-import os
-import yaml
-from typing import Any, Dict, Optional
+from typing import Dict, List, Any, Optional
 
-
-def load_config(config_path: str) -> Dict[str, Any]:
+class ReportConfig:
     """
-    Load a configuration file.
+    Configuration for reports.
     
-    Args:
-        config_path: Path to the configuration file
+    This class provides methods for configuring reports.
+    """
+    
+    def __init__(self):
+        """Initialize the report configuration."""
+        self.config = {}
         
-    Returns:
-        The loaded configuration as a dictionary
+    def set(self, key: str, value: Any) -> None:
+        """
+        Set a configuration value.
         
-    Raises:
-        FileNotFoundError: If the configuration file does not exist
-        ValueError: If the configuration file has an unsupported format
-    """
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
-    _, ext = os.path.splitext(config_path)
-    ext = ext.lower()
-    
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            if ext == '.json':
-                return json.load(f)
-            elif ext in ('.yaml', '.yml'):
-                return yaml.safe_load(f)
-            else:
-                raise ValueError(f"Unsupported configuration file format: {ext}")
-    except Exception as e:
-        logging.error(f"Error loading configuration file: {e}")
-        raise
-
-
-def save_config(config: Dict[str, Any], config_path: str) -> None:
-    """
-    Save a configuration to a file.
-    
-    Args:
-        config: Configuration to save
-        config_path: Path to save the configuration to
+        Args:
+            key: Configuration key
+            value: Configuration value
+        """
+        self.config[key] = value
         
-    Raises:
-        ValueError: If the configuration file has an unsupported format
-    """
-    _, ext = os.path.splitext(config_path)
-    ext = ext.lower()
-    
-    # Create the directory if it doesn't exist
-    os.makedirs(os.path.dirname(os.path.abspath(config_path)), exist_ok=True)
-    
-    try:
-        with open(config_path, 'w', encoding='utf-8') as f:
-            if ext == '.json':
-                json.dump(config, f, indent=2)
-            elif ext in ('.yaml', '.yml'):
-                yaml.dump(config, f, default_flow_style=False)
-            else:
-                raise ValueError(f"Unsupported configuration file format: {ext}")
-    except Exception as e:
-        logging.error(f"Error saving configuration file: {e}")
-        raise
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        Get a configuration value.
+        
+        Args:
+            key: Configuration key
+            default: Default value if key is not found
+            
+        Returns:
+            Configuration value
+        """
+        return self.config.get(key, default)
+        
+    def remove(self, key: str) -> None:
+        """
+        Remove a configuration value.
+        
+        Args:
+            key: Configuration key
+        """
+        if key in self.config:
+            del self.config[key]
+            
+    def clear(self) -> None:
+        """Clear all configuration values."""
+        self.config.clear()
+        
+    def update(self, config: Dict[str, Any]) -> None:
+        """
+        Update configuration with values from a dictionary.
+        
+        Args:
+            config: Dictionary of configuration values
+        """
+        self.config.update(config)
+        
+    def as_dict(self) -> Dict[str, Any]:
+        """
+        Get the configuration as a dictionary.
+        
+        Returns:
+            Configuration dictionary
+        """
+        return self.config.copy()
 

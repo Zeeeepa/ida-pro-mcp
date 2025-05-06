@@ -1,127 +1,128 @@
 """
-Email Delivery Module
+Email delivery channel for PR static analysis reports.
 
-This module provides a delivery channel for sending reports via email.
+This module provides the EmailDelivery class for sending reports via email.
 """
 
-import logging
+from typing import Dict, Any, Optional
 import smtplib
-from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict, List, Optional, Union
-
+from email.mime.multipart import MIMEMultipart
 from .base_delivery import BaseDelivery
 
-
 class EmailDelivery(BaseDelivery):
-    """
-    Delivery channel for sending reports via email.
+    """Delivery channel for email."""
     
-    This delivery channel can send reports as email messages to specified recipients.
-    It supports both plain text and HTML email formats.
-    """
-    
-    def __init__(
-        self,
-        smtp_server: str,
-        smtp_port: int = 587,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        use_tls: bool = True,
-        default_sender: Optional[str] = None,
-        default_recipients: Optional[List[str]] = None,
-        default_subject: str = "PR Static Analysis Report"
-    ):
+    def __init__(self, smtp_server: str = None, smtp_port: int = None, 
+                 username: str = None, password: str = None, use_tls: bool = True):
         """
-        Initialize a new EmailDelivery channel.
+        Initialize the email delivery channel.
         
         Args:
             smtp_server: SMTP server address
             smtp_port: SMTP server port
-            username: SMTP username (if authentication is required)
-            password: SMTP password (if authentication is required)
-            use_tls: Whether to use TLS encryption
-            default_sender: Default sender email address
-            default_recipients: Default recipient email addresses
-            default_subject: Default email subject
+            username: SMTP username
+            password: SMTP password
+            use_tls: Whether to use TLS
         """
+        super().__init__()
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.username = username
         self.password = password
         self.use_tls = use_tls
-        self.default_sender = default_sender
-        self.default_recipients = default_recipients or []
-        self.default_subject = default_subject
         
-    def deliver(
-        self, 
-        report: str, 
-        **kwargs
-    ) -> bool:
+    def deliver(self, report: str, **kwargs) -> bool:
         """
         Deliver a report via email.
         
         Args:
-            report: The report to deliver
-            **kwargs: Additional delivery-specific arguments, including:
-                - sender: Sender email address
-                - recipients: List of recipient email addresses
-                - subject: Email subject
-                - is_html: Whether the report is in HTML format
-                - cc: List of CC recipients
-                - bcc: List of BCC recipients
+            report: Report content
+            **kwargs: Additional arguments for the delivery
+                from_addr: Sender email address
+                to_addr: Recipient email address (or list of addresses)
+                subject: Email subject
+                is_html: Whether the report is HTML
+                cc: CC recipients
+                bcc: BCC recipients
             
         Returns:
             True if delivery was successful, False otherwise
         """
+        from_addr = kwargs.get("from_addr")
+        to_addr = kwargs.get("to_addr")
+        subject = kwargs.get("subject", "PR Analysis Report")
+        is_html = kwargs.get("is_html", False)
+        cc = kwargs.get("cc")
+        bcc = kwargs.get("bcc")
+        
+        if not from_addr or not to_addr:
+            self.logger.error("Sender and recipient email addresses are required")
+            return False
+            
+        if not self.smtp_server or not self.smtp_port:
+            self.logger.error("SMTP server and port are required")
+            return False
+            
         try:
-            # Get email parameters
-            sender = kwargs.get('sender', self.default_sender)
-            recipients = kwargs.get('recipients', self.default_recipients)
-            subject = kwargs.get('subject', self.default_subject)
-            is_html = kwargs.get('is_html', False)
-            cc = kwargs.get('cc', [])
-            bcc = kwargs.get('bcc', [])
+            # Create the email
+            msg = MIMEMultipart()
+            msg["From"] = from_addr
             
-            if not sender:
-                raise ValueError("Sender email address is required")
+            # Handle multiple recipients
+            if isinstance(to_addr, list):
+                msg["To"] = ", ".join(to_addr)
+            else:
+                msg["To"] = to_addr
+                
+            msg["Subject"] = subject
             
-            if not recipients:
-                raise ValueError("At least one recipient email address is required")
-            
-            # Create the email message
-            msg = MIMEMultipart('alternative')
-            msg['From'] = sender
-            msg['To'] = ', '.join(recipients)
-            msg['Subject'] = subject
-            
+            # Add CC if provided
             if cc:
-                msg['Cc'] = ', '.join(cc)
-                recipients.extend(cc)
-            
-            if bcc:
-                recipients.extend(bcc)
+                if isinstance(cc, list):
+                    msg["Cc"] = ", ".join(cc)
+                else:
+                    msg["Cc"] = cc
+                    
+            # Add BCC if provided (not included in headers)
+            if bcc and not isinstance(bcc, list):
+                bcc = [bcc]
             
             # Attach the report
             if is_html:
-                msg.attach(MIMEText(report, 'html'))
+                msg.attach(MIMEText(report, "html"))
             else:
-                msg.attach(MIMEText(report, 'plain'))
-            
-            # Connect to the SMTP server and send the email
+                msg.attach(MIMEText(report, "plain"))
+                
+            # Prepare recipients list for sending
+            recipients = []
+            if isinstance(to_addr, list):
+                recipients.extend(to_addr)
+            else:
+                recipients.append(to_addr)
+                
+            if cc:
+                if isinstance(cc, list):
+                    recipients.extend(cc)
+                else:
+                    recipients.append(cc)
+                    
+            if bcc:
+                recipients.extend(bcc)
+                
+            # Send the email
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                 if self.use_tls:
                     server.starttls()
-                
+                    
                 if self.username and self.password:
                     server.login(self.username, self.password)
+                    
+                server.sendmail(from_addr, recipients, msg.as_string())
                 
-                server.sendmail(sender, recipients, msg.as_string())
-            
+            self.logger.info(f"Report delivered via email to: {to_addr}")
             return True
-        
         except Exception as e:
-            logging.error(f"Error delivering report via email: {e}")
+            self.logger.error(f"Error delivering report via email: {e}")
             return False
 

@@ -1,441 +1,183 @@
 """
-Table Visualization Module
+Table visualizations for PR static analysis reports.
 
-This module provides a visualization for generating tables from analysis results.
+This module provides classes for generating table visualizations of analysis results.
 """
 
-import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
-
+from typing import Dict, List, Any, Optional
 from .base_visualization import BaseVisualization
 
-
-class TableVisualization(BaseVisualization):
-    """
-    Visualization for generating tables from analysis results.
+class ResultsTable(BaseVisualization):
+    """Table of analysis results."""
     
-    This visualization can generate HTML, Markdown, or plain text tables
-    from analysis results.
-    """
-    
-    def __init__(
-        self,
-        format: str = 'html',
-        headers: Optional[List[str]] = None,
-        caption: Optional[str] = None,
-        sort_by: Optional[str] = None,
-        sort_reverse: bool = False
-    ):
+    def generate(self, results: List[Dict[str, Any]], **kwargs) -> str:
         """
-        Initialize a new TableVisualization.
+        Generate an HTML table of analysis results.
         
         Args:
-            format: Table format ('html', 'markdown', 'text')
-            headers: Table headers
-            caption: Table caption
-            sort_by: Column to sort by
-            sort_reverse: Whether to sort in reverse order
-        """
-        self.format = format
-        self.headers = headers
-        self.caption = caption
-        self.sort_by = sort_by
-        self.sort_reverse = sort_reverse
-        
-    def generate(
-        self, 
-        analysis_results: Dict[str, Any], 
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        Generate a table visualization from analysis results.
-        
-        Args:
-            analysis_results: Analysis results to visualize
-            **kwargs: Additional visualization-specific arguments, including:
-                - data_key: Key in analysis_results containing the data to visualize
-                - headers: Override the default table headers
-                - caption: Override the default table caption
-                - format: Override the default table format
-                - sort_by: Override the default sort column
-                - sort_reverse: Override the default sort order
-                - max_rows: Maximum number of rows to include
-                - include_row_numbers: Whether to include row numbers
-                - table_class: CSS class for the HTML table
-                - table_id: ID for the HTML table
-            
-        Returns:
-            A dictionary containing the visualization data, including:
-                - table: The generated table
-                - format: The table format
-                - headers: The table headers
-                - caption: The table caption
-                - row_count: The number of rows in the table
-        """
-        try:
-            # Get table parameters
-            data_key = kwargs.get('data_key')
-            headers = kwargs.get('headers', self.headers)
-            caption = kwargs.get('caption', self.caption)
-            format = kwargs.get('format', self.format)
-            sort_by = kwargs.get('sort_by', self.sort_by)
-            sort_reverse = kwargs.get('sort_reverse', self.sort_reverse)
-            max_rows = kwargs.get('max_rows')
-            include_row_numbers = kwargs.get('include_row_numbers', False)
-            table_class = kwargs.get('table_class', 'table table-striped')
-            table_id = kwargs.get('table_id')
-            
-            # Extract the data to visualize
-            data = self._extract_data(analysis_results, data_key)
-            
-            if not data:
-                logging.warning("No data to visualize")
-                return {
-                    'error': "No data to visualize",
-                    'format': format,
-                    'caption': caption
-                }
-            
-            # Convert the data to a list of rows
-            rows = self._convert_to_rows(data)
-            
-            # Determine headers if not provided
-            if not headers and rows:
-                if isinstance(rows[0], dict):
-                    headers = list(rows[0].keys())
-                elif isinstance(rows[0], (list, tuple)):
-                    headers = [f"Column {i+1}" for i in range(len(rows[0]))]
-            
-            # Sort the rows if requested
-            if sort_by and headers:
-                try:
-                    sort_index = headers.index(sort_by)
-                    rows.sort(key=lambda row: row[sort_index] if isinstance(row, (list, tuple)) else row.get(sort_by, ''),
-                              reverse=sort_reverse)
-                except (ValueError, IndexError):
-                    pass
-            
-            # Limit the number of rows if requested
-            if max_rows and len(rows) > max_rows:
-                rows = rows[:max_rows]
-            
-            # Add row numbers if requested
-            if include_row_numbers:
-                if headers:
-                    headers = ['#'] + list(headers)
+            results: Analysis results
+            **kwargs: Additional visualization options
+                columns: List of columns to include
+                sort_by: Column to sort by
+                sort_desc: Whether to sort in descending order
                 
-                for i, row in enumerate(rows):
-                    if isinstance(row, dict):
-                        row = {'#': i + 1, **row}
-                    elif isinstance(row, (list, tuple)):
-                        row = [i + 1] + list(row)
-                    rows[i] = row
-            
-            # Generate the table based on the format
-            if format == 'html':
-                table = self._generate_html_table(rows, headers, caption, table_class, table_id)
-            elif format == 'markdown':
-                table = self._generate_markdown_table(rows, headers, caption)
-            elif format == 'text':
-                table = self._generate_text_table(rows, headers, caption)
-            else:
-                logging.warning(f"Unsupported table format: {format}")
-                return {
-                    'error': f"Unsupported table format: {format}",
-                    'format': format,
-                    'caption': caption
-                }
-            
-            return {
-                'table': table,
-                'format': format,
-                'headers': headers,
-                'caption': caption,
-                'row_count': len(rows)
-            }
-        
-        except Exception as e:
-            logging.error(f"Error generating table visualization: {e}")
-            return {
-                'error': str(e),
-                'format': self.format,
-                'caption': self.caption
-            }
-    
-    def _extract_data(
-        self, 
-        analysis_results: Dict[str, Any], 
-        data_key: Optional[str] = None
-    ) -> Any:
-        """
-        Extract data from analysis results for visualization.
-        
-        Args:
-            analysis_results: Analysis results to extract data from
-            data_key: Key in analysis_results containing the data to visualize
-            
         Returns:
-            The extracted data
+            HTML table
         """
-        if data_key and data_key in analysis_results:
-            # Use the specified data key
-            return analysis_results[data_key]
+        # Get options
+        columns = kwargs.get("columns", ["rule_id", "severity", "category", "message", "file_path", "line"])
+        sort_by = kwargs.get("sort_by")
+        sort_desc = kwargs.get("sort_desc", False)
         
-        # Try to find suitable data
-        for key in ['issues', 'metrics', 'files_added', 'files_modified', 'files_removed']:
-            if key in analysis_results and analysis_results[key]:
-                return analysis_results[key]
+        # Sort results if requested
+        if sort_by:
+            results = sorted(results, key=lambda r: r.get(sort_by, ""), reverse=sort_desc)
         
-        # No suitable data found
-        return None
-    
-    def _convert_to_rows(self, data: Any) -> List[Any]:
-        """
-        Convert data to a list of rows for the table.
+        # Generate the table
+        html = """<table style="width:100%; border-collapse: collapse; margin: 20px 0;">
+    <thead>
+        <tr style="background-color: #f2f2f2;">
+"""
         
-        Args:
-            data: Data to convert
+        # Add column headers
+        for column in columns:
+            header = column.replace("_", " ").title()
+            html += f'            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">{header}</th>\n'
             
-        Returns:
-            A list of rows
-        """
-        if isinstance(data, list):
-            # If it's already a list, use it directly
-            return data
-        elif isinstance(data, dict):
-            # Convert dictionary to list of rows
-            if all(isinstance(value, dict) for value in data.values()):
-                # Dictionary of dictionaries
-                return [{'key': key, **value} for key, value in data.items()]
-            else:
-                # Simple dictionary
-                return [{'key': key, 'value': value} for key, value in data.items()]
-        else:
-            # Unsupported data format
-            return []
-    
-    def _generate_html_table(
-        self, 
-        rows: List[Any], 
-        headers: Optional[List[str]] = None,
-        caption: Optional[str] = None,
-        table_class: str = 'table table-striped',
-        table_id: Optional[str] = None
-    ) -> str:
-        """
-        Generate an HTML table.
-        
-        Args:
-            rows: Table rows
-            headers: Table headers
-            caption: Table caption
-            table_class: CSS class for the table
-            table_id: ID for the table
-            
-        Returns:
-            The HTML table as a string
-        """
-        html_parts = []
-        
-        # Start the table
-        html_parts.append(f'<table class="{table_class}"' + (f' id="{table_id}"' if table_id else '') + '>')
-        
-        # Add caption if provided
-        if caption:
-            html_parts.append(f'  <caption>{caption}</caption>')
-        
-        # Add headers if provided
-        if headers:
-            html_parts.append('  <thead>')
-            html_parts.append('    <tr>')
-            for header in headers:
-                html_parts.append(f'      <th>{header}</th>')
-            html_parts.append('    </tr>')
-            html_parts.append('  </thead>')
+        html += """        </tr>
+    </thead>
+    <tbody>
+"""
         
         # Add rows
-        html_parts.append('  <tbody>')
-        for row in rows:
-            html_parts.append('    <tr>')
+        for result in results:
+            html += '        <tr style="border: 1px solid #ddd;">\n'
             
-            if isinstance(row, dict):
-                # Dictionary row
-                for header in (headers or row.keys()):
-                    value = row.get(header, '')
-                    html_parts.append(f'      <td>{value}</td>')
-            elif isinstance(row, (list, tuple)):
-                # List row
-                for value in row:
-                    html_parts.append(f'      <td>{value}</td>')
-            else:
-                # Single value row
-                html_parts.append(f'      <td>{row}</td>')
+            for column in columns:
+                value = result.get(column, "")
+                
+                # Format the value based on the column
+                if column == "severity":
+                    color = self._get_severity_color(value)
+                    html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: {color};">{value}</td>\n'
+                elif column == "file_path" and "line" in result:
+                    html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;">{value}:{result["line"]}</td>\n'
+                else:
+                    html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;">{value}</td>\n'
+                    
+            html += '        </tr>\n'
             
-            html_parts.append('    </tr>')
-        html_parts.append('  </tbody>')
+        html += """    </tbody>
+</table>"""
         
-        # End the table
-        html_parts.append('</table>')
-        
-        return '\n'.join(html_parts)
+        return html
     
-    def _generate_markdown_table(
-        self, 
-        rows: List[Any], 
-        headers: Optional[List[str]] = None,
-        caption: Optional[str] = None
-    ) -> str:
+    def _get_severity_color(self, severity: str) -> str:
         """
-        Generate a Markdown table.
+        Get a color for a severity level.
         
         Args:
-            rows: Table rows
-            headers: Table headers
-            caption: Table caption
+            severity: Severity level
             
         Returns:
-            The Markdown table as a string
+            CSS color
         """
-        md_parts = []
+        colors = {
+            "critical": "#ffcccc",
+            "error": "#ffddcc",
+            "warning": "#ffffcc",
+            "info": "#ccffff",
+            "other": "#f2f2f2"
+        }
         
-        # Add caption if provided
-        if caption:
-            md_parts.append(f"**{caption}**")
-            md_parts.append("")
-        
-        # Determine column widths
-        col_widths = []
-        if headers:
-            col_widths = [len(str(header)) for header in headers]
-        
-        # Update column widths based on row values
-        for row in rows:
-            if isinstance(row, dict):
-                # Dictionary row
-                for i, header in enumerate(headers or []):
-                    value = str(row.get(header, ''))
-                    if i >= len(col_widths):
-                        col_widths.append(len(value))
-                    else:
-                        col_widths[i] = max(col_widths[i], len(value))
-            elif isinstance(row, (list, tuple)):
-                # List row
-                for i, value in enumerate(row):
-                    value_str = str(value)
-                    if i >= len(col_widths):
-                        col_widths.append(len(value_str))
-                    else:
-                        col_widths[i] = max(col_widths[i], len(value_str))
-        
-        # Ensure we have at least one column width
-        if not col_widths:
-            col_widths = [10]
-        
-        # Add headers if provided
-        if headers:
-            header_row = "| " + " | ".join(str(header).ljust(col_widths[i]) for i, header in enumerate(headers)) + " |"
-            md_parts.append(header_row)
-            
-            # Add separator row
-            separator_row = "| " + " | ".join("-" * col_widths[i] for i in range(len(headers))) + " |"
-            md_parts.append(separator_row)
-        
-        # Add rows
-        for row in rows:
-            if isinstance(row, dict):
-                # Dictionary row
-                values = [str(row.get(header, '')).ljust(col_widths[i]) for i, header in enumerate(headers or [])]
-                md_parts.append("| " + " | ".join(values) + " |")
-            elif isinstance(row, (list, tuple)):
-                # List row
-                values = [str(value).ljust(col_widths[i]) for i, value in enumerate(row)]
-                md_parts.append("| " + " | ".join(values) + " |")
-            else:
-                # Single value row
-                md_parts.append("| " + str(row).ljust(col_widths[0]) + " |")
-        
-        return "\n".join(md_parts)
+        return colors.get(severity.lower(), "#f2f2f2")
+
+class SummaryTable(BaseVisualization):
+    """Summary table of analysis results."""
     
-    def _generate_text_table(
-        self, 
-        rows: List[Any], 
-        headers: Optional[List[str]] = None,
-        caption: Optional[str] = None
-    ) -> str:
+    def generate(self, results: List[Dict[str, Any]], **kwargs) -> str:
         """
-        Generate a plain text table.
+        Generate an HTML summary table of analysis results.
         
         Args:
-            rows: Table rows
-            headers: Table headers
-            caption: Table caption
+            results: Analysis results
+            **kwargs: Additional visualization options
+                
+        Returns:
+            HTML table
+        """
+        # Count by severity
+        severity_counts = {}
+        for result in results:
+            severity = result.get("severity", "info")
+            severity_counts[severity] = severity_counts.get(severity, 0) + 1
+            
+        # Count by category
+        category_counts = {}
+        for result in results:
+            category = result.get("category", "other")
+            category_counts[category] = category_counts.get(category, 0) + 1
+            
+        # Generate the table
+        html = """<table style="width:100%; border-collapse: collapse; margin: 20px 0;">
+    <thead>
+        <tr style="background-color: #f2f2f2;">
+            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Metric</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Count</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr style="border: 1px solid #ddd;">
+            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;"><strong>Total Issues</strong></td>
+            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;">{}</td>
+        </tr>
+""".format(len(results))
+        
+        # Add severity counts
+        html += '        <tr style="border: 1px solid #ddd; background-color: #f9f9f9;">\n'
+        html += '            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;" colspan="2"><strong>By Severity</strong></td>\n'
+        html += '        </tr>\n'
+        
+        for severity, count in severity_counts.items():
+            color = self._get_severity_color(severity)
+            html += f'        <tr style="border: 1px solid #ddd;">\n'
+            html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: {color};">{severity.capitalize()}</td>\n'
+            html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;">{count}</td>\n'
+            html += f'        </tr>\n'
+            
+        # Add category counts
+        html += '        <tr style="border: 1px solid #ddd; background-color: #f9f9f9;">\n'
+        html += '            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;" colspan="2"><strong>By Category</strong></td>\n'
+        html += '        </tr>\n'
+        
+        for category, count in category_counts.items():
+            html += f'        <tr style="border: 1px solid #ddd;">\n'
+            html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;">{category.capitalize()}</td>\n'
+            html += f'            <td style="padding: 8px; text-align: left; border: 1px solid #ddd;">{count}</td>\n'
+            html += f'        </tr>\n'
+            
+        html += """    </tbody>
+</table>"""
+        
+        return html
+    
+    def _get_severity_color(self, severity: str) -> str:
+        """
+        Get a color for a severity level.
+        
+        Args:
+            severity: Severity level
             
         Returns:
-            The plain text table as a string
+            CSS color
         """
-        text_parts = []
+        colors = {
+            "critical": "#ffcccc",
+            "error": "#ffddcc",
+            "warning": "#ffffcc",
+            "info": "#ccffff",
+            "other": "#f2f2f2"
+        }
         
-        # Add caption if provided
-        if caption:
-            text_parts.append(caption)
-            text_parts.append("")
-        
-        # Determine column widths
-        col_widths = []
-        if headers:
-            col_widths = [len(str(header)) for header in headers]
-        
-        # Update column widths based on row values
-        for row in rows:
-            if isinstance(row, dict):
-                # Dictionary row
-                for i, header in enumerate(headers or []):
-                    value = str(row.get(header, ''))
-                    if i >= len(col_widths):
-                        col_widths.append(len(value))
-                    else:
-                        col_widths[i] = max(col_widths[i], len(value))
-            elif isinstance(row, (list, tuple)):
-                # List row
-                for i, value in enumerate(row):
-                    value_str = str(value)
-                    if i >= len(col_widths):
-                        col_widths.append(len(value_str))
-                    else:
-                        col_widths[i] = max(col_widths[i], len(value_str))
-        
-        # Ensure we have at least one column width
-        if not col_widths:
-            col_widths = [10]
-        
-        # Create the separator line
-        separator = "+" + "+".join("-" * (width + 2) for width in col_widths) + "+"
-        
-        # Add the separator
-        text_parts.append(separator)
-        
-        # Add headers if provided
-        if headers:
-            header_row = "| " + " | ".join(str(header).ljust(col_widths[i]) for i, header in enumerate(headers)) + " |"
-            text_parts.append(header_row)
-            text_parts.append(separator)
-        
-        # Add rows
-        for row in rows:
-            if isinstance(row, dict):
-                # Dictionary row
-                values = [str(row.get(header, '')).ljust(col_widths[i]) for i, header in enumerate(headers or [])]
-                text_parts.append("| " + " | ".join(values) + " |")
-            elif isinstance(row, (list, tuple)):
-                # List row
-                values = [str(value).ljust(col_widths[i]) for i, value in enumerate(row)]
-                text_parts.append("| " + " | ".join(values) + " |")
-            else:
-                # Single value row
-                text_parts.append("| " + str(row).ljust(col_widths[0]) + " |")
-        
-        # Add the final separator
-        text_parts.append(separator)
-        
-        return "\n".join(text_parts)
+        return colors.get(severity.lower(), "#f2f2f2")
 

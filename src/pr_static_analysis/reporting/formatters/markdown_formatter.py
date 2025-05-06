@@ -1,200 +1,103 @@
 """
-Markdown Formatter Module
+Markdown formatter for PR static analysis reports.
 
-This module provides a formatter for converting analysis results into Markdown format.
+This module provides the MarkdownFormatter class for generating Markdown reports.
 """
 
-from typing import Any, Dict, Optional, List
-
+from typing import Dict, List, Any, Optional
 from .base_formatter import BaseFormatter
 
-
 class MarkdownFormatter(BaseFormatter):
-    """
-    Formatter for converting analysis results into Markdown format.
+    """Formatter for Markdown reports."""
     
-    This formatter generates a Markdown report from analysis results.
-    It supports customization of the report structure and content.
-    """
-    
-    def __init__(
-        self,
-        include_summary: bool = True,
-        include_details: bool = True,
-        include_issues: bool = True,
-        include_files: bool = True,
-        include_metrics: bool = True,
-        custom_sections: Optional[Dict[str, Any]] = None
-    ):
+    def format_report(self, results: List[Dict[str, Any]], metadata: Dict[str, Any], **kwargs) -> str:
         """
-        Initialize a new MarkdownFormatter.
+        Format a report as Markdown.
         
         Args:
-            include_summary: Whether to include a summary section
-            include_details: Whether to include a details section
-            include_issues: Whether to include an issues section
-            include_files: Whether to include a files section
-            include_metrics: Whether to include a metrics section
-            custom_sections: Optional dictionary of custom sections to include
-        """
-        self.include_summary = include_summary
-        self.include_details = include_details
-        self.include_issues = include_issues
-        self.include_files = include_files
-        self.include_metrics = include_metrics
-        self.custom_sections = custom_sections or {}
-        
-    def format(
-        self, 
-        analysis_results: Dict[str, Any], 
-        visualizations: Optional[Dict[str, Any]] = None,
-        **kwargs
-    ) -> str:
-        """
-        Format analysis results into a Markdown report.
-        
-        Args:
-            analysis_results: Analysis results to format
-            visualizations: Optional dictionary of visualization data
-            **kwargs: Additional formatter-specific arguments
+            results: Analysis results
+            metadata: Report metadata
+            **kwargs: Additional formatting options
+                include_summary: Whether to include a summary section
+                include_visualizations: Whether to include visualizations
             
         Returns:
-            The formatted report as a Markdown string
+            Markdown report
         """
-        report_parts = []
+        # Get formatting options
+        include_summary = kwargs.get("include_summary", True)
+        include_visualizations = kwargs.get("include_visualizations", False)
         
-        # Add title
-        title = kwargs.get('title', 'PR Static Analysis Report')
-        report_parts.append(f"# {title}")
-        report_parts.append("")
+        # Format the report header
+        report = "# PR Analysis Report\n\n"
         
-        # Add summary section
-        if self.include_summary and 'summary' in analysis_results:
-            report_parts.append("## Summary")
-            report_parts.append("")
-            report_parts.append(analysis_results['summary'])
-            report_parts.append("")
+        # Add metadata
+        if metadata:
+            report += "## Metadata\n\n"
+            for key, value in metadata.items():
+                report += f"- **{key}**: {value}\n"
+            report += "\n"
+            
+        # Add summary
+        if include_summary:
+            report += "## Summary\n\n"
+            severity_counts = self._count_by_severity(results)
+            report += f"- **Total Issues**: {len(results)}\n"
+            for severity, count in severity_counts.items():
+                report += f"- **{severity.capitalize()}**: {count} issue(s)\n"
+            report += "\n"
         
-        # Add issues section
-        if self.include_issues and 'issues' in analysis_results:
-            report_parts.append("## Issues")
-            report_parts.append("")
-            
-            issues = analysis_results['issues']
-            if not issues:
-                report_parts.append("No issues found.")
-            else:
-                for issue in issues:
-                    severity = issue.get('severity', 'info').upper()
-                    message = issue.get('message', '')
-                    file = issue.get('file', '')
-                    line = issue.get('line', '')
-                    
-                    location = ""
-                    if file:
-                        location = f" in {file}"
-                        if line:
-                            location += f" at line {line}"
-                    
-                    report_parts.append(f"- **[{severity}]**{location}: {message}")
-            
-            report_parts.append("")
+        # Add visualizations if requested
+        if include_visualizations:
+            report += "## Visualizations\n\n"
+            report += "Visualizations would be included here in a real report.\n\n"
         
-        # Add files section
-        if self.include_files and any(k in analysis_results for k in ['files_added', 'files_modified', 'files_removed']):
-            report_parts.append("## Files")
-            report_parts.append("")
-            
-            files_added = analysis_results.get('files_added', [])
-            files_modified = analysis_results.get('files_modified', [])
-            files_removed = analysis_results.get('files_removed', [])
-            
-            if files_added:
-                report_parts.append("### Files Added")
-                report_parts.append("")
-                for file in sorted(files_added):
-                    report_parts.append(f"- `{file}`")
-                report_parts.append("")
-            
-            if files_modified:
-                report_parts.append("### Files Modified")
-                report_parts.append("")
-                for file in sorted(files_modified):
-                    report_parts.append(f"- `{file}`")
-                report_parts.append("")
-            
-            if files_removed:
-                report_parts.append("### Files Removed")
-                report_parts.append("")
-                for file in sorted(files_removed):
-                    report_parts.append(f"- `{file}`")
-                report_parts.append("")
+        # Group results by severity
+        grouped = self._group_by_severity(results)
         
-        # Add metrics section
-        if self.include_metrics and 'metrics' in analysis_results:
-            report_parts.append("## Metrics")
-            report_parts.append("")
+        # Add details for each severity
+        for severity, items in grouped.items():
+            report += f"## {severity.capitalize()} Issues\n\n"
+            for item in items:
+                report += self.format_result(item)
+            report += "\n"
             
-            metrics = analysis_results['metrics']
-            for key, value in metrics.items():
-                # Format the key for better readability
-                formatted_key = key.replace('_', ' ').title()
-                report_parts.append(f"- **{formatted_key}**: {value}")
-            
-            report_parts.append("")
+        return report
         
-        # Add visualizations
-        if visualizations:
-            report_parts.append("## Visualizations")
-            report_parts.append("")
-            
-            for viz_name, viz_data in visualizations.items():
-                if isinstance(viz_data, str):
-                    # If the visualization is a string (e.g., a URL or embedded image), add it directly
-                    report_parts.append(f"### {viz_name.replace('_', ' ').title()}")
-                    report_parts.append("")
-                    report_parts.append(viz_data)
-                    report_parts.append("")
-            
-        # Add custom sections
-        for section_name, section_content in self.custom_sections.items():
-            report_parts.append(f"## {section_name}")
-            report_parts.append("")
-            
-            if callable(section_content):
-                # If the section content is a function, call it with the analysis results
-                content = section_content(analysis_results)
-                report_parts.append(content)
-            else:
-                # Otherwise, add the content directly
-                report_parts.append(str(section_content))
-            
-            report_parts.append("")
+    def format_result(self, result: Dict[str, Any]) -> str:
+        """
+        Format a single result as Markdown.
         
-        # Add details section
-        if self.include_details and 'details' in analysis_results:
-            report_parts.append("## Details")
-            report_parts.append("")
+        Args:
+            result: Analysis result
             
-            details = analysis_results['details']
-            if isinstance(details, str):
-                report_parts.append(details)
-            elif isinstance(details, dict):
-                for key, value in details.items():
-                    report_parts.append(f"### {key}")
-                    report_parts.append("")
-                    report_parts.append(str(value))
-                    report_parts.append("")
-            elif isinstance(details, list):
-                for item in details:
-                    if isinstance(item, dict) and 'title' in item and 'content' in item:
-                        report_parts.append(f"### {item['title']}")
-                        report_parts.append("")
-                        report_parts.append(item['content'])
-                        report_parts.append("")
-                    else:
-                        report_parts.append(str(item))
-                        report_parts.append("")
+        Returns:
+            Markdown-formatted result
+        """
+        rule_id = result.get("rule_id", "unknown")
+        message = result.get("message", "No message")
+        file_path = result.get("file_path")
+        line = result.get("line")
+        category = result.get("category", "other")
+        
+        location = ""
+        if file_path:
+            location = f"in `{file_path}`"
+            if line:
+                location += f" at line {line}"
+                
+        return f"### {rule_id}\n\n{message}\n\n**Category**: {category}\n\n**Location**: {location}\n\n"
+        
+    def format_section(self, title: str, content: str) -> str:
+        """
+        Format a section as Markdown.
+        
+        Args:
+            title: Section title
+            content: Section content
             
-        return "\n".join(report_parts)
+        Returns:
+            Markdown-formatted section
+        """
+        return f"## {title}\n\n{content}\n\n"
 
