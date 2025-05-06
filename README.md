@@ -31,6 +31,21 @@ Available functionality:
 - `declare_c_type(c_declaration)`: Create or update a local type from a C declaration.
 - `set_local_variable_type(function_address, variable_name, new_type)`: Set a local variable's type.
 
+### Notification System
+
+The IDA Pro MCP now includes a notification system that allows tracking and managing notifications:
+
+- `get_unread_notification_count()`: Get the count of unread notifications.
+- `get_all_notifications()`: Get all notifications.
+- `get_unread_notifications()`: Get all unread notifications.
+- `mark_notification_as_read(notification_id)`: Mark a notification as read.
+- `mark_all_notifications_as_read()`: Mark all notifications as read.
+- `add_notification(message, source, metadata)`: Add a new notification.
+- `delete_notification(notification_id)`: Delete a notification.
+- `show_notifications()`: Show the notifications panel.
+
+The notification system provides a visual indicator of new activity requiring attention, with features for tracking notifications, displaying a badge in the UI, and managing notification status.
+
 ## Prerequisites
 
 - [Python](https://www.python.org/downloads/) (**3.11 or higher**) 
@@ -54,7 +69,7 @@ pip install --upgrade git+https://github.com/mrexodia/ida-pro-mcp
 
 Configure the MCP servers and install the IDA Plugin:
 
-```
+```sh
 ida-pro-mcp --install
 ```
 
@@ -181,7 +196,7 @@ To install the MCP server yourself, follow these steps:
 
 To check if the connection works you can perform the following tool call:
 
-```
+```sh
 <use_mcp_tool>
 <server_name>github.com/mrexodia/ida-pro-mcp</server_name>
 <tool_name>check_connection</tool_name>

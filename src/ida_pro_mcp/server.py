@@ -9,6 +9,9 @@ from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
+# Import notification service
+from .notification_service import get_notification_service, Notification
+
 # The log_level is necessary for Cline to work: https://github.com/jlowin/fastmcp/issues/81
 mcp = FastMCP("github.com/mrexodia/ida-pro-mcp", log_level="ERROR")
 
@@ -163,7 +166,7 @@ visitor = MCPVisitor()
 visitor.visit(module)
 code = """# NOTE: This file has been automatically generated, do not modify!
 # Architecture based on https://github.com/mrexodia/ida-pro-mcp (MIT License)
-from typing import Annotated, Optional, TypedDict, Generic, TypeVar
+from typing import Annotated, Optional, TypedDict, Generic, TypeVar, List, Dict, Any
 from pydantic import Field
 
 T = TypeVar("T")
@@ -181,6 +184,28 @@ exec(compile(code, GENERATED_PY, "exec"))
 
 MCP_FUNCTIONS = ["check_connection"] + list(visitor.functions.keys())
 UNSAFE_FUNCTIONS = visitor.unsafe
+
+# Add notification-related MCP tools
+@mcp.tool()
+def get_notification_count() -> int:
+    """Get the count of unread notifications"""
+    notification_service = get_notification_service()
+    return notification_service.get_unread_count()
+
+@mcp.tool()
+def add_test_notification(message: str) -> str:
+    """Add a test notification with the given message"""
+    notification_id = f"test-{len(message)}"
+    notification = Notification(
+        id=notification_id,
+        message=message,
+        source="test"
+    )
+    
+    notification_service = get_notification_service()
+    notification_service.add_notification(notification)
+    
+    return f"Added test notification: {notification_id}"
 
 def generate_readme():
     print("README:")
