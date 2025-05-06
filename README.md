@@ -1,114 +1,179 @@
 # PR Static Analysis System
 
-A system for static analysis of pull requests.
+A system for analyzing pull requests and providing automated feedback.
 
 ## Overview
 
-This system provides a framework for analyzing pull requests and identifying potential issues. It is designed to be extensible, allowing users to define custom rules for their specific needs.
+The PR Static Analysis System is a tool for analyzing pull requests and providing automated feedback. It can be used to:
 
-## Features
+- Check for code quality issues
+- Enforce coding standards
+- Detect potential bugs
+- Provide suggestions for improvements
 
-- Analyze pull requests for potential issues
-- Extensible rule system
-- Configurable analysis pipeline
-- Support for plugins and extensions
-- Detailed reporting of analysis results
+The system is designed to be extensible, allowing for easy addition of new rules and features.
 
 ## Architecture
 
 The system is organized into the following components:
 
-- **Core**: Contains the main analysis pipeline and infrastructure
-  - `analysis_context.py`: Holds the state during analysis
-  - `rule_engine.py`: Manages and executes analysis rules
-  - `pr_analyzer.py`: Orchestrates the analysis process
-- **Rules**: Contains the rules for PR analysis
-  - `base_rule.py`: Base class for all rules
-- **Config**: Contains configuration handling
-  - `config_model.py`: Configuration models
-  - `default_config.py`: Default configuration
-- **Utils**: Contains utility functions
-  - `helpers.py`: Utility functions for the system
+- **Core**: The core components of the system, including the PR analyzer, rule engine, and analysis context.
+- **Rules**: The rules used to analyze pull requests, organized by category.
+- **GitHub**: Components for interacting with GitHub's API and webhooks.
+- **Reporting**: Components for generating and formatting analysis reports.
+- **Utils**: Utility functions used throughout the system.
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/pr-analysis.git
+cd pr-analysis
+
+# Install dependencies
+pip install -r requirements.txt
+```
 
 ## Usage
 
+### Basic Usage
+
 ```python
-from pr_static_analysis import PRAnalyzer, PRData, AnalysisConfig
-from datetime import datetime
+from pr_analysis.core.pr_analyzer import PRAnalyzer
+from pr_analysis.github.pr_client import PRClient
 
-# Create PR data
-pr_data = PRData(
-    pr_id="123",
-    title="Add new feature",
-    description="This PR adds a new feature",
-    author="user",
-    base_branch="main",
-    head_branch="feature",
-    created_at=datetime.now(),
-    updated_at=datetime.now(),
-    files_changed=["file1.py", "file2.py"]
-)
+# Create a PR client
+client = PRClient()
 
-# Create analyzer with default config
-analyzer = PRAnalyzer(AnalysisConfig())
+# Get PR data
+pr_data = client.get_pr("owner", "repo", 123)
+files = client.get_pr_files("owner", "repo", 123)
+
+# Convert files to the format expected by the analyzer
+file_changes = []
+for file in files:
+    file_changes.append({
+        "filename": file.get("filename"),
+        "status": file.get("status"),
+        "patch": file.get("patch"),
+    })
+
+# Create analyzer
+analyzer = PRAnalyzer()
 
 # Analyze PR
-results = analyzer.analyze_pr(pr_data)
+context, report = analyzer.analyze_pr(
+    pr_id="123",
+    repo_name="owner/repo",
+    base_branch=pr_data.get("base", {}).get("ref", "main"),
+    head_branch=pr_data.get("head", {}).get("ref", "head"),
+    file_changes=file_changes,
+    output_format="json",
+)
 
-# Print results
-for result in results:
-    print(f"{result.rule_id}: {result.status} - {result.message}")
+# Print report
+print(report)
+```
+
+### Command Line Usage
+
+```bash
+python -m pr_analysis.example 123 owner/repo --format json --output report.json
+```
+
+### GitHub Webhook Integration
+
+The system can be integrated with GitHub webhooks to automatically analyze pull requests when they are created or updated.
+
+```python
+from pr_analysis.github.webhook_handler import WebhookHandler
+
+# Create webhook handler
+handler = WebhookHandler()
+
+# Handle webhook event
+result = handler.handle_webhook("pull_request", payload)
 ```
 
 ## Creating Custom Rules
 
-To create a custom rule, inherit from the `BaseRule` class and implement the `analyze` method:
+You can create custom rules by inheriting from the `BaseRule` class and implementing the `analyze` method.
 
 ```python
-from pr_static_analysis import BaseRule, PRAnalysisContext, AnalysisResult
-from typing import List
+from pr_analysis.rules.base_rule import BaseRule
+from pr_analysis.core.analysis_context import PRAnalysisContext, AnalysisResult
+from typing import List, ClassVar
 
 class MyCustomRule(BaseRule):
-    RULE_ID = "my_custom_rule"
-    CATEGORY = "custom"
-    DESCRIPTION = "My custom rule"
-    SEVERITY = "warning"
+    """A custom rule for checking something."""
+    
+    RULE_ID: ClassVar[str] = "custom.my_rule"
+    RULE_NAME: ClassVar[str] = "My Custom Rule"
+    RULE_DESCRIPTION: ClassVar[str] = "Checks for something"
+    RULE_CATEGORY: ClassVar[str] = "custom"
     
     def analyze(self, context: PRAnalysisContext) -> List[AnalysisResult]:
-        # Implement your rule logic here
+        """
+        Analyze a PR for something.
+        
+        Args:
+            context: The analysis context
+            
+        Returns:
+            A list of analysis results
+        """
         results = []
         
-        # Example: Check if any Python files were changed
-        for file_path in context.pr_data.files_changed:
-            if file_path.endswith(".py"):
-                results.append(AnalysisResult(
-                    rule_id=self.RULE_ID,
-                    status="pass",
-                    message="Python file changed",
-                    file_path=file_path
-                ))
-                
+        # Analyze the PR
+        
         return results
 ```
 
 ## Configuration
 
-The system can be configured using a JSON or YAML file:
+The system can be configured using a JSON or YAML file. The configuration file can be specified when creating the analyzer.
 
-```yaml
-# Example configuration
-max_workers: 8
-parallel_execution: true
-include_categories:
-  - security
-  - performance
-exclude_rules:
-  - unused_import
-output_format: json
-output_file: results.json
+```python
+from pr_analysis.core.pr_analyzer import PRAnalyzer
+
+# Create analyzer with configuration
+analyzer = PRAnalyzer(config_path="config.json")
+```
+
+Example configuration file:
+
+```json
+{
+  "enabled_rules": ["code_integrity.line_length", "parameter.missing_type_hints"],
+  "disabled_rules": ["implementation.complexity"],
+  "custom_rule_paths": ["path/to/custom/rules"],
+  "output_format": "json",
+  "output_directory": "reports",
+  "github_token": "your-github-token",
+  "github_api_url": "https://api.github.com",
+  "max_files_per_analysis": 100,
+  "max_lines_per_file": 10000,
+  "ignore_generated_files": true,
+  "ignore_binary_files": true,
+  "ignore_deleted_files": false,
+  "rule_settings": {
+    "code_integrity": {
+      "max_file_size": 1000000,
+      "max_line_length": 120
+    },
+    "parameter": {
+      "check_types": true,
+      "check_defaults": true
+    },
+    "implementation": {
+      "check_complexity": true,
+      "max_complexity": 15
+    }
+  }
+}
 ```
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
 
