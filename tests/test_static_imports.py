@@ -32,6 +32,11 @@ class TestStaticImports(unittest.TestCase):
         except (subprocess.SubprocessError, FileNotFoundError):
             self.skipTest("pylint is not installed")
 
+        # Add src directory to Python path for pylint
+        env = os.environ.copy()
+        python_path = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = f"{str(self.src_dir)}{os.pathsep}{python_path}"
+
         # Run pylint with import-related checks only
         result = subprocess.run(
             [
@@ -44,7 +49,8 @@ class TestStaticImports(unittest.TestCase):
                 str(self.src_dir)
             ],
             capture_output=True,
-            text=True
+            text=True,
+            env=env
         )
 
         # If pylint found issues, the test fails
@@ -54,4 +60,3 @@ class TestStaticImports(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
