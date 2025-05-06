@@ -8,8 +8,13 @@ import json
 import struct
 import threading
 import http.server
+import uuid
 from urllib.parse import urlparse
-from typing import Any, Callable, get_type_hints, TypedDict, Optional, Annotated, TypeVar, Generic
+from typing import Any, Callable, get_type_hints, TypedDict, Optional, Annotated, TypeVar, Generic, List, Dict
+
+# Import notification modules
+from .notification_service import get_notification_service, Notification
+from .notification_ui import get_notification_badge, show_notification_panel, cleanup_notification_ui
 
 class JSONRPCError(Exception):
     def __init__(self, code: int, message: str, data: Any = None):
@@ -976,7 +981,7 @@ def declare_c_type(
 ):
     """Create or update a local type from a C declaration"""
     # PT_SIL: Suppress warning dialogs (although it seems unnecessary here)
-    # PT_EMPTY: Allow empty types (also unnecessary?)
+    # PT_EMPTY: Allow empty types (also unnecessary? )
     # PT_TYP: Print back status messages with struct tags
     flags = ida_typeinf.PT_SIL | ida_typeinf.PT_EMPTY | ida_typeinf.PT_TYP
     errors, messages = parse_decls_ctypes(c_declaration, flags)
@@ -1206,8 +1211,14 @@ class MCP(idaapi.plugin_t):
         self.server = Server()
         hotkey = MCP.wanted_hotkey.replace("-", "+")
         if sys.platform == "darwin":
-            hotkey = hotkey.replace("Alt", "Option")
-        print(f"[MCP] Plugin loaded, use Edit -> Plugins -> MCP ({hotkey}) to start the server")
+            shortcut = hotkey.replace("Alt", "Option")
+        else:
+            shortcut = hotkey
+        print(f"[MCP] Plugin loaded, use Edit -> Plugins -> MCP ({shortcut}) to start the server")
+        
+        # Initialize notification badge
+        self.notification_badge = get_notification_badge()
+        
         return idaapi.PLUGIN_KEEP
 
     def run(self, args):
@@ -1215,6 +1226,75 @@ class MCP(idaapi.plugin_t):
 
     def term(self):
         self.server.stop()
+        
+        # Clean up notification UI
+        cleanup_notification_ui()
 
 def PLUGIN_ENTRY():
     return MCP()
+
+# Add notification-related JSON-RPC methods
+
+@jsonrpc
+def get_unread_notification_count() -> int:
+    """Get the count of unread notifications."""
+    notification_service = get_notification_service()
+    return notification_service.get_unread_count()
+
+@jsonrpc
+def get_all_notifications() -> List[Dict[str, Any]]:
+    """Get all notifications."""
+    notification_service = get_notification_service()
+    notifications = notification_service.get_all_notifications()
+    return [notification.to_dict() for notification in notifications]
+
+@jsonrpc
+def get_unread_notifications() -> List[Dict[str, Any]]:
+    """Get all unread notifications."""
+    notification_service = get_notification_service()
+    notifications = notification_service.get_unread_notifications()
+    return [notification.to_dict() for notification in notifications]
+
+@jsonrpc
+def mark_notification_as_read(notification_id: Annotated[str, "ID of the notification to mark as read"]) -> bool:
+    """Mark a notification as read."""
+    notification_service = get_notification_service()
+    return notification_service.mark_as_read(notification_id)
+
+@jsonrpc
+def mark_all_notifications_as_read() -> int:
+    """Mark all notifications as read."""
+    notification_service = get_notification_service()
+    return notification_service.mark_all_as_read()
+
+@jsonrpc
+def add_notification(
+    message: Annotated[str, "Message text for the notification"],
+    source: Annotated[str, "Source of the notification (e.g., 'ida', 'plugin', 'system')"] = None,
+    metadata: Annotated[Dict[str, Any], "Additional data for the notification"] = None
+) -> str:
+    """Add a new notification."""
+    notification_id = str(uuid.uuid4())
+    notification = Notification(
+        id=notification_id,
+        message=message,
+        source=source,
+        metadata=metadata or {}
+    )
+    
+    notification_service = get_notification_service()
+    notification_service.add_notification(notification)
+    
+    return notification_id
+
+@jsonrpc
+def delete_notification(notification_id: Annotated[str, "ID of the notification to delete"]) -> bool:
+    """Delete a notification."""
+    notification_service = get_notification_service()
+    return notification_service.delete_notification(notification_id)
+
+@jsonrpc
+def show_notifications() -> str:
+    """Show the notifications panel."""
+    show_notification_panel()
+    return "Notifications panel shown"
