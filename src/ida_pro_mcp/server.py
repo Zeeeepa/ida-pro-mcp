@@ -150,7 +150,7 @@ class MCPVisitor(ast.NodeVisitor):
 
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-IDA_PLUGIN_PY = os.path.join(SCRIPT_DIR, "mcp-plugin.py")
+IDA_PLUGIN_PY = os.path.join(SCRIPT_DIR, "mcp_plugin.py")
 GENERATED_PY = os.path.join(SCRIPT_DIR, "server_generated.py")
 
 # NOTE: This is in the global scope on purpose
@@ -323,7 +323,7 @@ def install_ida_plugin(*, uninstall: bool = False, quiet: bool = False):
         ida_plugin_folder = os.path.join(os.getenv("APPDATA"), "Hex-Rays", "IDA Pro", "plugins")
     else:
         ida_plugin_folder = os.path.join(os.path.expanduser("~"), ".idapro", "plugins")
-    plugin_destination = os.path.join(ida_plugin_folder, "mcp-plugin.py")
+    plugin_destination = os.path.join(ida_plugin_folder, "mcp_plugin.py")
     if uninstall:
         if not os.path.exists(plugin_destination):
             print(f"Skipping IDA plugin uninstall\n  Path: {plugin_destination} (not found)")
