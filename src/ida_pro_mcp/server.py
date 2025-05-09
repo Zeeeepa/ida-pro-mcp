@@ -8,6 +8,10 @@ import http.client
 from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
+from ida_pro_mcp.file_sync import (
+    init_files, ensure_directory_exists, create_template_file,
+    set_file_permissions, backup_file, update_file
+)
 
 # The log_level is necessary for Cline to work: https://github.com/jlowin/fastmcp/issues/81
 mcp = FastMCP("github.com/mrexodia/ida-pro-mcp", log_level="ERROR")
@@ -279,6 +283,10 @@ def install_mcp_servers(*, uninstall=False, quiet=False, env={}):
             if not quiet:
                 print(f"Skipping {name} {action}\n  Config: {config_path} (not found)")
             continue
+        
+        # Use file_sync module to ensure directory exists
+        ensure_directory_exists(config_dir)
+        
         if not os.path.exists(config_path):
             config = {}
         else:
@@ -295,7 +303,7 @@ def install_mcp_servers(*, uninstall=False, quiet=False, env={}):
             del mcp_servers[mcp.name]
         else:
             if mcp.name in mcp_servers:
-                for key, value in mcp_servers[mcp.name].get("env", {}):
+                for key, value in mcp_servers[mcp.name].get("env", {}).items():
                     env[key] = value
             mcp_servers[mcp.name] = {
                 "command": get_python_executable(),
@@ -309,8 +317,10 @@ def install_mcp_servers(*, uninstall=False, quiet=False, env={}):
             }
             if env:
                 mcp_servers[mcp.name]["env"] = env
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
+        
+        # Use file_sync module to update the file
+        update_file(config_path, config)
+        
         if not quiet:
             action = "Uninstalled" if uninstall else "Installed"
             print(f"{action} {name} MCP server (restart required)\n  Config: {config_path}")
@@ -332,12 +342,11 @@ def install_ida_plugin(*, uninstall: bool = False, quiet: bool = False):
         if not quiet:
             print(f"Uninstalled IDA plugin\n  Path: {plugin_destination}")
     else:
-        # Create IDA plugins folder
-        if not os.path.exists(ida_plugin_folder):
-            os.makedirs(ida_plugin_folder)
+        # Use file_sync module to ensure directory exists
+        ensure_directory_exists(ida_plugin_folder)
 
         # Skip if symlink already up to date
-        realpath = os.path.realpath(plugin_destination)
+        realpath = os.path.realpath(plugin_destination) if os.path.lexists(plugin_destination) else None
         if realpath == IDA_PLUGIN_PY:
             if not quiet:
                 print(f"Skipping IDA plugin installation (symlink up to date)\n  Plugin: {realpath}")
@@ -351,6 +360,9 @@ def install_ida_plugin(*, uninstall: bool = False, quiet: bool = False):
                 os.symlink(IDA_PLUGIN_PY, plugin_destination)
             except OSError:
                 shutil.copy(IDA_PLUGIN_PY, plugin_destination)
+            
+            # Set appropriate file permissions
+            set_file_permissions(plugin_destination)
 
             if not quiet:
                 print(f"Installed IDA Pro plugin (IDA restart required)\n  Plugin: {plugin_destination}")
@@ -365,6 +377,7 @@ def main():
     parser.add_argument("--transport", type=str, default="stdio", help="MCP transport protocol to use (stdio or http://127.0.0.1:8744)")
     parser.add_argument("--ida-rpc", type=str, default=f"http://{ida_host}:{ida_port}", help=f"IDA RPC server to use (default: http://{ida_host}:{ida_port})")
     parser.add_argument("--unsafe", action="store_true", help="Enable unsafe functions (DANGEROUS)")
+    parser.add_argument("--init-files", action="store_true", help="Initialize required files and directories")
     args = parser.parse_args()
 
     if args.install and args.uninstall:
@@ -380,6 +393,14 @@ def main():
         install_mcp_servers(uninstall=True)
         install_ida_plugin(uninstall=True)
         return
+    
+    # Initialize files if requested
+    if args.init_files:
+        if init_files():
+            print("Successfully initialized all required files and directories")
+        else:
+            print("Failed to initialize some files or directories")
+        return
 
     # NOTE: Developers can use this to generate the README
     if args.generate_docs:
@@ -389,6 +410,9 @@ def main():
     # NOTE: This is silent for automated Cline installations
     if args.install_plugin:
         install_ida_plugin(quiet=True)
+    
+    # Always ensure required files exist when starting the server
+    init_files()
 
     # Parse IDA RPC server argument
     ida_rpc = urlparse(args.ida_rpc)
