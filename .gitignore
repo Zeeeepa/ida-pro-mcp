@@ -10,18 +10,52 @@ wheels/
 .venv*/
 venv*/
 
-# Logs
-*.log
+# Dependency directories
+node_modules/
 
-# Test files
-*.idb
-*.i64
-*.nam
-*.id0
-*.id1
-*.id2
-*.til
-*.elf
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variable files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Mac files
+.DS_Store
+
+# Windows files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 
 # Generated server files
 server_generated.py
