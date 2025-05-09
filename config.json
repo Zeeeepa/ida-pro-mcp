@@ -1,0 +1,26 @@
+{
+  "default_format": "markdown",
+  "include_visualizations": true,
+  "delivery": {
+    "github_pr_comment": {
+      "enabled": true
+    },
+    "file_system": {
+      "enabled": true,
+      "output_dir": "reports"
+    },
+    "email": {
+      "enabled": false,
+      "smtp": {
+        "server": "smtp.example.com",
+        "port": 587,
+        "use_tls": true,
+        "username": "",
+        "password": "",
+        "sender": "pr-analysis@example.com"
+      },
+      "recipients": []
+    }
+  }
+}
+

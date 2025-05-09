@@ -1,0 +1,52 @@
+[
+  {
+    "rule_id": "E001",
+    "message": "Missing docstring",
+    "severity": "error",
+    "file": "example.py",
+    "line": 10
+  },
+  {
+    "rule_id": "E002",
+    "message": "Line too long",
+    "severity": "error",
+    "file": "example.py",
+    "line": 20
+  },
+  {
+    "rule_id": "W001",
+    "message": "Unused variable",
+    "severity": "warning",
+    "file": "utils.py",
+    "line": 30
+  },
+  {
+    "rule_id": "I001",
+    "message": "Consider using a list comprehension",
+    "severity": "info",
+    "file": "utils.py",
+    "line": 40
+  },
+  {
+    "rule_id": "E003",
+    "message": "Undefined variable",
+    "severity": "error",
+    "file": "main.py",
+    "line": 50
+  },
+  {
+    "rule_id": "W002",
+    "message": "Unused import",
+    "severity": "warning",
+    "file": "main.py",
+    "line": 5
+  },
+  {
+    "rule_id": "I002",
+    "message": "Consider using a dictionary comprehension",
+    "severity": "info",
+    "file": "utils.py",
+    "line": 60
+  }
+]
+
