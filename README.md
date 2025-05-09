@@ -6,7 +6,36 @@ https://github.com/user-attachments/assets/6ebeaa92-a9db-43fa-b756-eececce2aca0
 
 The binaries and prompt for the video are available in the [mcp-reversing-dataset](https://github.com/mrexodia/mcp-reversing-dataset) repository.
 
-Available functionality:
+## Project Structure
+
+```
+ida-pro-mcp/
+├── docs/                    # Documentation
+│   ├── architecture.md      # Architecture overview
+│   ├── api.md               # API reference
+│   ├── modules.md           # Module documentation
+│   ├── developer_guide.md   # Guide for developers
+│   └── testing.md           # Testing procedures and results
+├── src/                     # Source code
+│   └── ida_pro_mcp/         # Main package
+│       ├── __init__.py      # Package initialization
+│       ├── server.py        # MCP server implementation
+│       ├── mcp-plugin.py    # IDA Pro plugin
+│       └── idalib_server.py # Headless server implementation
+├── pyproject.toml           # Project metadata and dependencies
+├── LICENSE                  # License information
+└── README.md                # Project overview
+```
+
+## Documentation
+
+- [Architecture Overview](docs/architecture.md) - Detailed architecture diagram and component descriptions
+- [API Reference](docs/api.md) - Comprehensive reference for all API functions
+- [Module Documentation](docs/modules.md) - Detailed information about each module
+- [Developer Guide](docs/developer_guide.md) - Guide for developers extending the project
+- [Testing Guide](docs/testing.md) - Testing procedures and results
+
+## Available Functionality
 
 - `check_connection`: Check if the IDA plugin is running.
 - `get_metadata()`: Get metadata about the current IDB.
@@ -54,7 +83,7 @@ pip install --upgrade git+https://github.com/mrexodia/ida-pro-mcp
 
 Configure the MCP servers and install the IDA Plugin:
 
-```
+```sh
 ida-pro-mcp --install
 ```
 
@@ -181,7 +210,7 @@ To install the MCP server yourself, follow these steps:
 
 To check if the connection works you can perform the following tool call:
 
-```
+```sh
 <use_mcp_tool>
 <server_name>github.com/mrexodia/ida-pro-mcp</server_name>
 <tool_name>check_connection</tool_name>
