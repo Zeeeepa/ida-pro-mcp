@@ -141,7 +141,7 @@ def main():
     if not ida_hexrays.init_hexrays_plugin():
         raise RuntimeError("failed to initialize Hex-Rays decompiler")
 
-    plugin = importlib.import_module("ida_pro_mcp.mcp-plugin")
+    plugin = importlib.import_module("ida_pro_mcp.mcp_plugin")
     logger.debug("adding tools...")
     for name, callable in plugin.rpc_registry.methods.items():
         if args.unsafe or name not in plugin.rpc_registry.unsafe:
