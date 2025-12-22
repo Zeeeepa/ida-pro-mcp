@@ -1,0 +1,11 @@
+# Core dependencies
+pyyaml>=6.0
+
+# Visualization dependencies (optional)
+matplotlib>=3.5.0; python_version >= "3.7"
+networkx>=2.6.0; python_version >= "3.7"
+
+# Delivery dependencies (optional)
+PyGithub>=1.55.0
+requests>=2.27.0
+
